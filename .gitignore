@@ -1,0 +1,32 @@
+# Coq compiled files
+*.vo
+*.vok
+*.vos
+*.glob
+*.aux
+
+# Cache files
+.lia.cache
+
+# Build files
+Makefile.coq
+Makefile.coq.conf
+.Makefile.coq.d
+
+# HTML documentation
+*.html
+deps.svg
+
+# macOS specific files
+.DS_Store
+
+# Common folder (contains external resources)
+common/
+
+# Editor backup files
+*~
+*.bak
+
+# IDE specific files
+.vscode/
+.idea/
