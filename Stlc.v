@@ -510,15 +510,76 @@ where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc_tm).
 Inductive substi (s : tm) (x : string) : tm -> tm -> Prop :=
   | s_var1 :
       substi s x (tm_var x) s
-  (* FILL IN HERE *)
-.
+  | s_var2 : forall y,
+      x <> y ->
+      substi s x (tm_var y) (tm_var y)
+  | s_abs1 : forall T t,
+      substi s x <{\x:T, t}> <{\x:T, t}>
+  | s_abs2 : forall y T t t',
+      x <> y ->
+      substi s x t t' ->
+      substi s x <{\y:T, t}> <{\y:T, t'}>
+  | s_app : forall t1 t1' t2 t2',
+      substi s x t1 t1' ->
+      substi s x t2 t2' ->
+      substi s x <{t1 t2}> <{t1' t2'}>
+  | s_true :
+      substi s x <{true}> <{true}>
+  | s_false :
+      substi s x <{false}> <{false}>
+  | s_if : forall t1 t1' t2 t2' t3 t3',
+      substi s x t1 t1' ->
+      substi s x t2 t2' ->
+      substi s x t3 t3' ->
+      substi s x <{if t1 then t2 else t3}> <{if t1' then t2' else t3'}> .
 
 Hint Constructors substi : core.
 
 Theorem substi_correct : forall s x t t',
   <{ [x:=s]t }> = t' <-> substi s x t t'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. split.
+  - (* 从函数到关系 *)
+    intro H. rewrite <- H. clear H t'.
+    induction t; simpl.
+    + (* tm_var case *)
+      destruct (String.eqb x0 s0) eqn:Heq.
+      * apply String.eqb_eq in Heq. subst. apply s_var1.
+      * apply String.eqb_neq in Heq. apply s_var2. assumption.
+    + (* tm_app case *)
+      apply s_app; [apply IHt1 | apply IHt2].
+    + (* tm_abs case *)
+      destruct (String.eqb x0 s0) eqn:Heq.
+      * apply String.eqb_eq in Heq. subst. apply s_abs1.
+      * apply String.eqb_neq in Heq. apply s_abs2; [assumption | apply IHt].
+    + (* tm_true case *)
+      apply s_true.
+    + (* tm_false case *)
+      apply s_false.
+    + (* tm_if case *)
+      apply s_if; [apply IHt1 | apply IHt2 | apply IHt3].
+  - (* 从关系到函数 *)
+    intro H. induction H; simpl.
+    + (* s_var1 *) 
+      rewrite String.eqb_refl. reflexivity.
+    + (* s_var2 *)
+      apply String.eqb_neq in H.
+      rewrite H. reflexivity.
+    + (* s_abs1 *)
+      rewrite String.eqb_refl. reflexivity.
+    + (* s_abs2 *)
+      apply String.eqb_neq in H.
+      rewrite H.
+      rewrite IHsubsti. reflexivity.
+    + (* s_app *)
+      rewrite IHsubsti1, IHsubsti2. reflexivity.
+    + (* s_true *)
+      reflexivity.
+    + (* s_false *)
+      reflexivity.
+    + (* s_if *)
+      rewrite IHsubsti1, IHsubsti2, IHsubsti3. reflexivity.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -712,13 +773,24 @@ Lemma step_example5 :
        <{idBBBB idBB idB}>
   -->* idB.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply multi_step.
+  - (* 第一步：应用 idBBBB 到 idBB *)
+    apply ST_App1.
+    apply ST_AppAbs.
+    apply v_abs.  (* idBB 是值 *)
+  - (* 继续证明 idBB idB -->* idB *)
+    eapply multi_step.
+    + (* 第二步：应用 idBB 到 idB *)
+      apply ST_AppAbs.
+      apply v_abs.  (* idB 是值 *)
+    + (* 最后：idB -->* idB *)
+      apply multi_refl.
+Qed.
 
 Lemma step_example5_with_normalize :
        <{idBBBB idBB idB}>
   -->* idB.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. normalize.  Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -874,7 +946,41 @@ Example typing_example_2_full :
           (y (y x)) \in
     Bool -> (Bool -> Bool) -> Bool }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* eauto 8. *)
+  (* 应用 T_Abs 规则到外层 \x:Bool *)
+  apply T_Abs.
+  (* 现在需要证明：x |-> Bool; empty |-- \y:Bool->Bool, (y (y x)) \in (Bool -> Bool) -> Bool *)
+  
+  (* 应用 T_Abs 规则到内层 \y:Bool->Bool *)
+  apply T_Abs.
+  (* 现在需要证明：y |-> Bool->Bool; x |-> Bool; empty |-- (y (y x)) \in Bool *)
+  
+  (* 应用 T_App 规则到外层应用 y (y x) *)
+  apply T_App with (T2 := Ty_Bool).
+  (* 现在需要证明两个目标：
+     1. y |-> Bool->Bool; x |-> Bool; empty |-- y \in Bool -> Bool
+     2. y |-> Bool->Bool; x |-> Bool; empty |-- (y x) \in Bool *)
+  
+  (* 证明目标1：y 的类型是 Bool -> Bool *)
+  - apply T_Var.
+    (* 在上下文中查找 y 的类型 *)
+    simpl. reflexivity.
+    
+  (* 证明目标2：(y x) 的类型是 Bool *)
+  - (* 应用 T_App 规则到内层应用 y x *)
+    apply T_App with (T2 := Ty_Bool).
+    (* 现在需要证明两个目标：
+       1. y |-> Bool->Bool; x |-> Bool; empty |-- y \in Bool -> Bool  
+       2. y |-> Bool->Bool; x |-> Bool; empty |-- x \in Bool *)
+    
+    (* 证明 y 的类型是 Bool -> Bool *)
+    + apply T_Var.
+      simpl. reflexivity.
+      
+    (* 证明 x 的类型是 Bool *)
+    + apply T_Var.
+      simpl. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (typing_example_3)
@@ -895,7 +1001,19 @@ Example typing_example_3 :
                (y (x z)) \in
       T }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists <{{ (Bool -> Bool) -> (Bool -> Bool) -> Bool -> Bool }}>.
+  apply T_Abs.
+  apply T_Abs.
+  apply T_Abs.
+  (* 现在需要证明：z |-> Bool; y |-> Bool->Bool; x |-> Bool->Bool; empty |-- (y (x z)) \in Bool *)
+  apply T_App with (T2 := Ty_Bool).
+  (* 证明 y 的类型 *)
+  - apply T_Var. simpl. reflexivity.
+  (* 证明 (x z) 的类型 *)
+  - apply T_App with (T2 := Ty_Bool).
+    + apply T_Var. simpl. reflexivity.
+    + apply T_Var. simpl. reflexivity.
+Qed.
 (** [] *)
 
 (** We can also show that some terms are _not_ typable.  For example,
@@ -937,7 +1055,28 @@ Example typing_nonexample_3 :
       <{ empty |--
           \x:S, x x \in T }>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros Hc. destruct Hc as [S [T Hc]].
+  inversion Hc; subst; clear Hc.
+  inversion H4; subst; clear H4.
+  inversion H5; subst; clear H5.
+  inversion H2; subst; clear H2.
+  rewrite H1 in H3.
+  injection H3 as H3.
+
+  (* 现在 H3: T2 = T2 -> T1 *)
+  (* 这意味着一个类型等于以自己为参数的函数类型，这是不可能的 *)
+  clear H1.
+  induction T2.
+  - (* T2 = Ty_Bool 的情况 *)
+    discriminate H3.
+  - (* T2 = Ty_Arrow T2_1 T2_2 的情况 *)
+    injection H3 as H3_1 H3_2.
+    (* H3_2: T2_2 = Ty_Arrow T2 T1 *)
+    (* 这会导致无限递归结构，在有限类型系统中不可能 *)
+    apply IHT2_1.
+    rewrite H3_2 in H3_1.
+    exact H3_1.
+Qed.
 (** [] *)
 
 End STLC.
