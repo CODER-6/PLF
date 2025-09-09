@@ -145,8 +145,78 @@ Theorem progress' : forall t T,
      value t \/ exists t', t --> t'.
 Proof.
   intros t.
-  induction t; intros T Ht; auto.
-  (* FILL IN HERE *) Admitted.
+  induction t; intros T Ht.
+  
+  (* Case: tm_var x *)
+  - (* 变量在空上下文中不能有类型，矛盾 *)
+    inversion Ht; subst.
+    (* H1: empty x = Some T，但 empty 是空映射，矛盾 *)
+    discriminate H1.
+  
+  (* Case: tm_app t1 t2 *)  
+  - (* 函数应用：t = t1 t2 *)
+    inversion Ht; subst.
+    destruct (IHt1 <{{ T2 -> T }}> H2) as [Hval1 | Hstep1].
+    
+    + (* Case: t1 是值 *)
+      (* 对 t2 应用归纳假设 *)
+      destruct (IHt2 T2 H4) as [Hval2 | Hstep2].
+      
+      * (* Case: t2 也是值 *)
+        right. 
+        eapply canonical_forms_fun in H2; [|assumption].
+        destruct H2 as [x [u Heq]]. subst.
+        (* 现在 t = (\x:T2, u) t2，可以通过 ST_AppAbs 规则归约 *)
+        exists <{ [x:=t2]u }>. 
+        apply ST_AppAbs. assumption.
+      
+      * (* Case: t2 可以步进 *)
+        (* 如果 t2 --> t2'，那么 t1 t2 --> t1 t2' *)
+        right.
+        destruct Hstep2 as [t2' Hstep].
+        exists <{ t1 t2' }>.
+        apply ST_App2; assumption.
+    
+    + (* Case: t1 可以步进 *)
+      (* 如果 t1 --> t1'，那么 t1 t2 --> t1' t2 *)
+      right.
+      destruct Hstep1 as [t1' Hstep].
+      exists <{ t1' t2 }>.
+      apply ST_App1. assumption.
+  
+  (* Case: tm_abs x T2 t1 *)
+  - (* 函数抽象总是值 *)
+    left. constructor.
+  
+  (* Case: tm_true *)
+  - (* true 是值 *)
+    left. constructor.
+  
+  (* Case: tm_false *)  
+  - (* false 是值 *)
+    left. constructor.
+  
+  (* Case: tm_if t1 t2 t3 *)
+  - (* 条件表达式：t = if t1 then t2 else t3 *)
+    inversion Ht; subst.
+    destruct (IHt1 _ H3) as [Hval1 | Hstep1].
+    
+    + (* Case: t1 是值 *)
+      right.
+      destruct (canonical_forms_bool t1 H3 Hval1) as [Htrue | Hfalse].
+      
+      * (* Case: t1 = true *)
+        subst. exists t2. apply ST_IfTrue.
+      
+      * (* Case: t1 = false *)  
+        subst. exists t3. apply ST_IfFalse.
+    
+    + (* Case: t1 可以步进 *)
+      right.
+      destruct Hstep1 as [t1' Hstep].
+      exists <{ if t1' then t2 else t3 }>.
+      apply ST_If. assumption.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -334,7 +404,40 @@ Proof.
   remember (x |-> U; Gamma) as Gamma'.
   generalize dependent Gamma.
   induction Ht; intros Gamma' G; simpl; eauto.
- (* FILL IN HERE *) Admitted.
+  
+  (* Case: T_Var *)
+  - (* t = tm_var x0, 有 Gamma x0 = Some T1 *)
+    rename x0 into y.
+    destruct (eqb_spec x y) as [Heq | Hneq].
+    
+    + (* Case: x = y *)
+      subst y. rewrite G in H. rewrite update_eq in H.
+      injection H as H. subst T1.
+      (* 使用弱化引理，从 <{ empty |-- v \in U }> 得到 <{ Gamma' |-- v \in U }> *)
+      apply weakening_empty. assumption.
+    
+    + (* Case: x <> y *)
+      (* 从 H: Gamma y = Some T1 和 G: Gamma = x |-> U; Gamma' 且 x <> y 得到 Gamma' y = Some T1 *)
+      apply T_Var. rewrite G in H. rewrite update_neq in H; assumption.
+  
+  (* Case: T_Abs *)
+  - (* t = tm_abs x0 T2 t1, 有 <{ x0 |-> T2; Gamma |-- t1 \in T1 }> 且 T = T2 -> T1 *)
+    rename x0 into y, T2 into S.
+    destruct (eqb_spec x y) as [Heq | Hneq].
+    
+    + (* Case: x = y *)
+
+      subst y. apply T_Abs.
+
+      rewrite G in Ht. rewrite update_shadow in Ht. assumption.
+    
+    + (* Case: x <> y *)
+      (* [x:=v](tm_abs y S t1) = tm_abs y S ([x:=v]t1) *)
+      apply T_Abs.
+      apply IHHt.
+      (* 需要证明：y |-> S; Gamma = x |-> U; (y |-> S; Gamma') *)
+      rewrite G. rewrite update_permute; auto.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -425,7 +528,39 @@ Proof.
   (* Note: Write "exists <{ ... }>" to use STLC term notation and
      exists <{{ ... }}> to use STCL type notation.
    *)
-  (* FILL IN HERE *) Admitted.
+  
+  (* 主题扩展性是指：如果 t --> t' 且 t' 是良类型的，那么 t 也应该是良类型的。
+     我们要找一个反例来证明这个性质不成立。
+     
+     关键思路：构造一个函数应用，其中函数和参数的类型不匹配（所以整个应用不是良类型的），
+     但函数体不依赖于参数，所以归约结果是良类型的。
+     
+     反例：t = (\x:Bool->Bool, true) true
+          t' = true
+          T = Bool
+          
+     解释：
+     - 函数 \x:Bool->Bool, true 期望参数类型为 Bool->Bool
+     - 实际参数 true 的类型是 Bool
+     - 类型不匹配，所以整个应用不是良类型的
+     - 但归约后得到 true，这是良类型的 *)
+  
+  exists <{ (\x:Bool->Bool, true) true }>, <{ true }>, <{{ Bool }}>.
+  split.
+  
+  - (* 证明：(\x:Bool->Bool, true) true --> true *)
+    apply ST_AppAbs.
+    constructor. (* true 是值 *)
+  
+  - (* 证明：empty |-- true \in Bool *)
+    constructor.
+     + constructor.
+    + (* 证明：~ (empty |-- (\x:Bool->Bool, true) true \in Bool) *)
+      intro H.
+      inversion H; subst.
+      inversion H5; subst.
+      inversion H3; subst.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_subject_expansion_stlc : option (nat*string) := None.
@@ -450,7 +585,50 @@ Proof.
   intros t t' T Hhas_type Hmulti. unfold stuck.
   intros [Hnf Hnot_val]. unfold normal_form in Hnf.
   induction Hmulti.
-  (* FILL IN HERE *) Admitted.
+  
+  (* Case: multi_refl - x0 = t' *)
+  - (* 当 x0 = t' 时，我们需要证明 x0 不是卡住的 *)
+    (* 我们有：
+       - Hhas_type: empty |-- x0 \in T （x0 是良类型的）
+       - Hnf: ~ exists t'', x0 --> t'' （x0 是正常形式）
+       - Hnot_val: ~ value x0 （x0 不是值）
+       
+       但是根据进展性定理，良类型的项要么是值，要么可以步进
+       这与我们的假设矛盾！ *)
+    
+    (* 应用进展性定理 *)
+    assert (Hprogress: value x0 \/ exists t'', x0 --> t'').
+    { apply progress with T. exact Hhas_type. }
+    
+    (* 分情况讨论 *)
+    destruct Hprogress as [Hval | Hstep].
+    + (* Case: x0 是值 *)
+      (* 这与 Hnot_val: ~ value x0 矛盾 *)
+      contradiction.
+    + (* Case: x0 可以步进 *)
+      (* 这与 Hnf: ~ exists t'', x0 --> t'' 矛盾 *)
+      contradiction.
+  
+  (* Case: multi_step - x0 --> y0 -->* z0 *)
+  - (* 当 x0 --> y0 -->* z0 时 *)
+    (* 我们有：
+       - Hhas_type: empty |-- x0 \in T
+       - H: x0 --> y0
+       - Hmulti: y0 -->* z0
+       - IHHmulti: 如果 empty |-- y0 \in T，那么 ~(stuck z0)
+       
+       我们需要证明 ~(stuck z0) *)
+    
+    (* 首先，通过保型性，从 x0 --> y0 和 empty |-- x0 \in T 得到 empty |-- y0 \in T *)
+    assert (Hy_typed: <{ empty |-- y0 \in T }>).
+    { apply preservation with x0; [exact Hhas_type | exact H]. }
+    
+    (* 然后应用归纳假设 *)
+    apply IHHmulti.
+    + exact Hy_typed.
+    + exact Hnf.
+    + exact Hnot_val.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -466,7 +644,38 @@ Theorem unique_types : forall Gamma e T T',
   <{ Gamma |-- e \in T' }> ->
   T = T'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma e T T' HT HT'.
+  (* 我们通过对第一个类型推导 HT 进行归纳来证明 *)
+  generalize dependent T'.
+  induction HT; intros T' HT'; inversion HT'; subst; auto.
+  
+  (* Case: T_Var *)
+  - (* e = tm_var s, T = T1, T' = T1' *)
+    (* 从 HT: Gamma s = Some T1 和 HT': Gamma s = Some T1' *)
+    (* 由于函数的确定性，T1 = T1' *)
+    rewrite H in H2. injection H2 as H2. subst. reflexivity.
+  
+  (* Case: T_Abs *)
+  - (* e = tm_abs x0 T2 t1, T = T2 -> T1, T' = T2 -> T0 *)
+    (* 从 HT 和 HT' 的结构，参数类型相同（T2），返回类型需要证明相等 *)
+    (* T1 = T0 来自于归纳假设 *)
+    assert (T1 = T0) as Heq.
+    { apply IHHT. exact H4. }
+    subst. reflexivity.
+  
+  (* Case: T_App *)
+  - (* e = tm_app t1 t2, T = T1, T' = T' *)
+    (* 从 HT1: Gamma |-- t1 \in T2 -> T1, HT2: Gamma |-- t2 \in T2 *)
+    (* 从 H2: Gamma |-- t1 \in T3 -> T', H4: Gamma |-- t2 \in T3 *)
+    (* 通过归纳假设：T2 -> T1 = T3 -> T' 且 T2 = T3 *)
+    assert (<{{ T2 -> T1 }}> = <{{ T3 -> T' }}>) as Heq1.
+    { apply IHHT1. exact H2. }
+    assert (T2 = T3) as Heq2.
+    { apply IHHT2. exact H4. }
+    (* 从箭头类型的相等性，得到 T1 = T' *)
+    injection Heq1 as Heq1_arg Heq1_ret.
+    exact Heq1_ret.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -595,7 +804,29 @@ Proof.
   generalize dependent T.
   induction H as [| | |y T1 t1 H H0 IHappears_free_in| | |];
          intros; try solve [inversion H0; eauto].
-  (* FILL IN HERE *) Admitted.
+  
+  (* Case: afi_abs - x 在函数抽象 \y:T1, t1 中自由出现 *)
+  (* 我们知道：
+     - x ≠ y （从 H0: x <> y）
+     - x 在 t1 中自由出现 （从 H: appears_free_in x t1）
+     - \y:T1, t1 在 Gamma 下良类型 （从 H1: Gamma |-- \y:T1, t1 \in T）
+  *)
+  
+  (* 通过对类型推导的逆向分析 *)
+  inversion H1; subst.
+  (* 得到：H5: y |-> T1; Gamma |-- t1 \in T0 *)
+  
+  (* 应用归纳假设到 t1 *)
+  apply IHappears_free_in in H7.
+  (* 得到：exists T', (y |-> T1; Gamma) x = Some T' *)
+  
+  destruct H7 as [T' Hx].
+  (* 现在我们有：(y |-> T1; Gamma) x = Some T' *)
+  
+  (* 由于 x ≠ y，我们可以使用 update_neq *)
+  exists T'.
+  rewrite update_neq in Hx; auto.
+Qed.
 (** [] *)
 
 (** From the [free_in_context] lemma, it immediately follows that any
@@ -607,7 +838,23 @@ Corollary typable_empty__closed : forall t T,
     <{ empty |-- t \in T }> ->
     closed t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t T Htyped.
+  (* 我们需要证明 closed t，即 forall x, ~ appears_free_in x t *)
+  unfold closed.
+  intros x Hfree.
+  (* 假设 x 在 t 中自由出现，我们要推出矛盾 *)
+  
+  (* 应用 free_in_context 引理 *)
+  apply free_in_context with (Gamma := empty) (T := T) in Hfree; auto.
+  (* 得到：exists T', empty x = Some T' *)
+  
+  destruct Hfree as [T' Hempty].
+  (* 现在我们有：empty x = Some T' *)
+  
+  (* 但是 empty 是空映射，对任何 x 都返回 None *)
+  (* 这与 empty x = Some T' 矛盾 *)
+  discriminate Hempty.
+Qed.
 (** [] *)
 
 (** Finally, we establish _context_invariance_.  It is useful in cases
@@ -669,7 +916,54 @@ Proof.
   intros.
   generalize dependent Gamma'.
   induction H as [| ? x0 ????? | | | |]; intros; auto.
-  (* FILL IN HERE *) Admitted.
+  
+  (* Case: T_Var *)
+  - (* t = tm_var s, 有 Gamma s = Some T *)
+    (* 需要证明：Gamma' |-- s \in T *)
+    apply T_Var.
+    (* 需要证明：Gamma' s = Some T *)
+    (* 由于 s 在 tm_var s 中自由出现，根据假设 H0，Gamma s = Gamma' s *)
+    rewrite <- H0.
+    + exact H.
+    + (* 证明：appears_free_in s (tm_var s) *)
+      constructor.
+  
+  (* Case: T_Abs *)
+  - (* t = tm_abs x0 T1 t1, 有 x0 |-> T1; Gamma |-- t1 \in T0 *)
+    (* 需要证明：Gamma' |-- \x0:T1, t1 \in T1 -> T0 *)
+    apply T_Abs.
+    (* 需要证明：x0 |-> T1; Gamma' |-- t1 \in T0 *)
+    apply IHhas_type.
+    (* 需要证明：forall x, appears_free_in x t1 -> (x0 |-> T1; Gamma) x = (x0 |-> T1; Gamma') x *)
+    intros x Hfree_in_t1.
+    
+    (* 分情况讨论：x = x0 还是 x <> x0 *)
+    destruct (eqb_spec x0 x) as [Heq | Hneq].
+    + (* Case: x0 = x *)
+      subst x.
+      (* 两个上下文在 x0 上都映射到 T1 *)
+      rewrite update_eq. rewrite update_eq. reflexivity.
+    + (* Case: x0 <> x *)
+      (* x 在 t1 中自由出现，且 x <> x0，所以 x 在 \x0:T1, t1 中也自由出现 *)
+      rewrite update_neq; auto.
+      rewrite update_neq; auto.
+  
+  (* Case: T_App *)
+  - (* t = tm_app t1 t2, 有 Gamma |-- t1 \in T2 -> T1 和 Gamma |-- t2 \in T2 *)
+    (* 需要证明：Gamma' |-- t1 t2 \in T1 *)
+    apply T_App with T2.
+    + (* 证明：Gamma' |-- t1 \in T2 -> T1 *)
+      apply IHhas_type1.
+      intros x Hfree.
+      apply H1.
+      apply afi_app1. exact Hfree.
+
+    + apply IHhas_type2.
+      intros x Hfree.
+      apply H1.
+      apply afi_app2. exact Hfree.
+
+Qed.
 (** [] *)
 
 (** The context invariance lemma can actually be used in place of the

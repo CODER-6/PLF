@@ -2135,10 +2135,6 @@ Definition pYX :=
 
 (** If you think they are equivalent, prove it. If you think they are
     not, prove that. *)
-
-Theorem pXY_cequiv_pYX :
-  cequiv pXY pYX \/ ~cequiv pXY pYX.
-Proof.
   (* Hint: You may want to use [t_update_permute] at some point,
      in which case you'll probably be left with [X <> Y] as a
      hypothesis. You can use [discriminate] to discharge this. *)
