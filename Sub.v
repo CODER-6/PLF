@@ -888,6 +888,10 @@ Inductive subtype : ty -> ty -> Prop :=
       T1 <: S1 ->
       S2 <: T2 ->
       <{{ S1->S2 }}> <: <{{ T1->T2 }}>
+  | S_Prod : forall S1 S2 T1 T2,
+      S1 <: T1 ->
+      S2 <: T2 ->
+      <{{ S1 * S2 }}> <: <{{ T1 * T2 }}>
 where "T '<:' U" := (subtype T U).
 
 (** Note that we don't need any special rules for base types ([Bool]
@@ -931,23 +935,39 @@ Proof. auto. Qed.
     Employee := { name : String ; ssn : Integer }
 *)
 Definition Person : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  := <{{ String * Top * Top }}>.
 Definition Student : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  := <{{ String * Float * Top }}>.
 Definition Employee : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  := <{{ String * Top * Integer }}>.
 
 (** Now use the definition of the subtype relation to prove the following: *)
 
 Example sub_student_person :
   Student <: Person.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold Student, Person.
+  (* Student = String * (Float * Top) *)
+  (* Person = String * (Top * Top) *)
+  (* 需要证明: String * (Float * Top) <: String * (Top * Top) *)
+  apply S_Prod.
+  - apply S_Prod.
+    + apply S_Refl.  (* String <: String *)
+    + apply S_Top. (* Top <: Top *)
+  - apply S_Top.
+Qed.
 
 Example sub_employee_person :
   Employee <: Person.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold Employee, Person.
+  (* Employee = String * (Top * Integer) *)
+  (* Person = String * (Top * Top) *)
+  (* 需要证明: String * (Top * Integer) <: String * (Top * Top) *)
+  apply S_Prod.
+  - apply S_Refl. 
+  - apply S_Top. 
+Qed.
 (** [] *)
 
 (** The following facts are mostly easy to prove in Coq.  To get
@@ -958,14 +978,20 @@ Proof.
 Example subtyping_example_1 :
   <{{ Top->Student }}> <:  <{{ (C->C)->Person }}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow.
+  - apply S_Top.
+  - apply sub_student_person.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (subtyping_example_2) *)
 Example subtyping_example_2 :
   <{{ Top->Person }}> <: <{{ Person->Top }}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow.
+  - apply S_Top.
+  - apply S_Top.
+Qed.
 (** [] *)
 
 End Examples.
@@ -1086,7 +1112,27 @@ Lemma sub_inversion_Bool : forall U,
 Proof with auto.
   intros U Hs.
   remember <{{ Bool }}> as V.
-  (* FILL IN HERE *) Admitted.
+  (* 对子类型关系进行归纳分析 *)
+  generalize dependent HeqV.
+  induction Hs; intros HeqV; subst.
+  - (* S_Refl: T <: T，这里 T = Bool *)
+    reflexivity.
+  - (* S_Trans: S <: U, U <: T，这里 T = Bool *)
+    (* 首先证明 U = Bool *)
+    assert (U = <{{ Bool }}>) as HU.
+    { apply IHHs2. reflexivity. }
+    (* 然后证明 S = U，需要 U = Bool *)
+    assert (S = U) as HSU.
+    { apply IHHs1. exact HU. }
+    (* 最后用传递性：S = U 且 U = Bool，所以 S = Bool *)
+    rewrite HSU. exact HU.
+  - (* S_Top: S <: Top，但这里 Top ≠ Bool *)
+    discriminate HeqV.
+  - (* S_Arrow: 不可能，因为箭头类型不等于 Bool *)
+    discriminate HeqV.
+  - (* S_Prod: 不可能，因为产品类型不等于 Bool *)
+    discriminate HeqV.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (sub_inversion_arrow) *)
