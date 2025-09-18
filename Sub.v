@@ -1144,7 +1144,36 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember <{{ V1->V2 }}> as V.
   generalize dependent V2. generalize dependent V1.
-  (* FILL IN HERE *) Admitted.
+  (* 对子类型关系进行归纳分析 *)
+  induction Hs; intros V1 V2 HeqV; subst.
+  - (* S_Refl: T <: T，这里 T = V1->V2 *)
+    exists V1, V2.
+    split; try reflexivity.
+    split; apply S_Refl.
+  - (* S_Trans: S <: U, U <: T，这里 T = V1->V2 *)
+    (* 首先对 U <: V1->V2 应用归纳假设 *)
+    destruct (IHHs2 V1 V2 eq_refl) as [U1 [U2 [HU [HV1U1 HU2V2]]]].
+    (* 然后对 S <: U 应用归纳假设，其中 U = U1->U2 *)
+    destruct (IHHs1 U1 U2 HU) as [S1 [S2 [HS [HU1S1 HS2U2]]]].
+    (* 组合结果 *)
+    exists S1, S2.
+    split.
+    + exact HS.
+    + split.
+      ++ (* V1 <: S1，通过传递性：V1 <: U1 <: S1 *)
+        apply S_Trans with U1; assumption.
+      ++ (* S2 <: V2，通过传递性：S2 <: U2 <: V2 *)
+        apply S_Trans with U2; assumption.
+    - (* S_Top: S <: Top，但 Top ≠ V1->V2 *)
+    discriminate HeqV.
+  - (* S_Arrow: S1->S2 <: T1->T2，这里 T1->T2 = V1->V2 *)
+    injection HeqV as H1 H2. subst.
+    exists S1, S2.
+    split.
+    + reflexivity.
+    + split; assumption.
+  - discriminate HeqV.
+Qed.
 (** [] *)
 
 (** There are additional _inversion lemmas_ for the other types:
@@ -1159,7 +1188,27 @@ Lemma sub_inversion_Unit : forall U,
 Proof with auto.
   intros U Hs.
   remember <{{ Unit }}> as V.
-  (* FILL IN HERE *) Admitted.
+  (* 对子类型关系进行归纳分析 *)
+  (* generalize dependent HeqV. *)
+  induction Hs; subst.
+  - (* S_Refl: T <: T，这里 T = Unit *)
+    reflexivity.
+  - (* S_Trans: S <: U, U <: T，这里 T = Unit *)
+    (* 首先证明 U = Unit *)
+    assert (U = <{{ Unit }}>) as HU.
+    { apply IHHs2. reflexivity. }
+    (* 然后证明 S = U，需要 U = Unit *)
+    assert (S = U) as HSU.
+    { apply IHHs1. exact HU. }
+    (* 最后用传递性：S = U 且 U = Unit，所以 S = Unit *)
+    rewrite HSU. exact HU.
+  - (* S_Top: S <: Top，但这里 Top ≠ Unit *)
+    discriminate HeqV.
+  - (* S_Arrow: 不可能，因为箭头类型不等于 Unit *)
+    discriminate HeqV.
+  - (* S_Prod: 不可能，因为产品类型不等于 Unit *)
+    discriminate HeqV.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Base) *)
@@ -1169,7 +1218,27 @@ Lemma sub_inversion_Base : forall U s,
 Proof with auto.
   intros U s Hs.
   remember <{{ Base s }}> as V.
-  (* FILL IN HERE *) Admitted.
+  (* 对子类型关系进行归纳分析 *)
+  (* generalize dependent HeqV. *)
+  induction Hs; subst.
+  - (* S_Refl: T <: T，这里 T = Base s *)
+    reflexivity.
+  - (* S_Trans: S <: U, U <: T，这里 T = Base s *)
+    (* 首先证明 U = Base s *)
+    assert (U = <{{ Base s }}>) as HU.
+    { apply IHHs2. reflexivity. }
+    (* 然后证明 S = U，需要 U = Base s *)
+    assert (S = U) as HSU.
+    { apply IHHs1. exact HU. }
+    (* 最后用传递性：S = U 且 U = Base s，所以 S = Base s *)
+    rewrite HSU. exact HU.
+  - (* S_Top: S <: Top，但这里 Top ≠ Base s *)
+    discriminate HeqV.
+  - (* S_Arrow: 不可能，因为箭头类型不等于 Base s *)
+    discriminate HeqV.
+  - (* S_Prod: 不可能，因为产品类型不等于 Base s *)
+    discriminate HeqV.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Top) *)
@@ -1179,7 +1248,26 @@ Lemma sub_inversion_Top : forall U,
 Proof with auto.
   intros U Hs.
   remember <{{ Top }}> as V.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; subst.
+  - (* S_Refl: T <: T，这里 T = Top *)
+    reflexivity.
+  - (* S_Trans: S <: U, U <: T，这里 T = Top *)
+    (* 首先证明 U = Top *)
+    assert (U = <{{ Top }}>) as HU.
+    { apply IHHs1. reflexivity. }
+    (* 然后证明 S = U，需要 U = Top *)
+    assert (T = U) as HSU.
+    { apply IHHs2. exact HU. }
+    (* 最后用传递性：S = U 且 U = Top，所以 S = Top *)
+    rewrite HSU. exact HU.
+  - 
+    reflexivity.
+  - (* S_Arrow: 不可能，因为箭头类型不等于 Top *)
+    discriminate HeqV.
+  - (* S_Prod: 不可能，因为产品类型不等于 Top *)
+    discriminate HeqV.
+Qed.
+  (* FILL IN HERE *) 
 (** [] *)
 
 (* ================================================================= *)
@@ -1216,7 +1304,36 @@ Lemma canonical_forms_of_arrow_types : forall Gamma s T1 T2,
   exists x S1 s2,
      s = <{\x:S1,s2}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma s T1 T2 Hty Hv.
+  remember <{{ T1 -> T2 }}> as T.
+  generalize dependent T1. generalize dependent T2.
+  induction Hty; intros T1' T2' HeqT; subst.
+  - (* T_Var *)
+    inversion Hv.
+  - (* T_Abs *)
+    (* T_Abs rule: \x:T2, t1 has type T2 -> T1 *)
+    (* After generalize dependent and renaming: T2 -> T1 = T1' -> T2' *)
+    (* So T2 = T1' and T1 = T2' *)
+    inversion HeqT; subst.
+    exists x, T2', t1.
+    reflexivity.
+  - (* T_App *)
+    inversion Hv.
+  - (* T_True *)
+    inversion Hv; inversion HeqT.
+  - (* T_False *)
+    inversion Hv; inversion HeqT.
+  - (* T_If *)
+    inversion Hv.
+  - (* T_Unit *)
+    inversion Hv; inversion HeqT.
+  - (* T_Sub *)
+    (* 使用 sub_inversion_arrow 引理 *)
+    destruct (sub_inversion_arrow T1 T2' T1' H) as [U1 [U2 [HeqT1 [_ _]]]].
+    (* 现在我们有 T1 = U1 -> U2 *)
+    apply (IHHty Hv U2 U1).
+    exact HeqT1.
+Qed.
 (** [] *)
 
 (** Similarly, the canonical forms of type [Bool] are the constants
@@ -1389,6 +1506,10 @@ Lemma typing_inversion_var : forall Gamma (x:string) T,
   exists S,
     Gamma x = Some S /\ S <: T.
 Proof with eauto.
+  intros Gamma x T Hty.
+  remember <{ x }> as t eqn:Heq.
+  induction Hty.
+  
   (* FILL IN HERE *) Admitted.
 (** [] *)
 
@@ -1399,7 +1520,50 @@ Lemma typing_inversion_app : forall Gamma t1 t2 T2,
     <{ Gamma |-- t1 \in T1->T2 }> /\
     <{ Gamma |-- t2 \in T1 }>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma t1 t2 T2 Hty.
+  (* 使用remember保持项的结构信息 *)
+  remember <{ t1 t2 }> as t eqn:Heq.
+  induction Hty.
+  - (* T_Var *)
+    (* 变量不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_Abs *)
+    (* lambda抽象不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_App *)
+    (* 从 Heq : <{ t1 t2 }> = <{ t0 t3 }> 得到 t1 = t0, t2 = t3 *)
+    injection Heq as Heq1 Heq2. subst.
+    (* T_App规则：t1 : T2->T1, t2 : T2, t1 t2 : T1 *)
+    (* 但我们的目标类型是T2，所以T1=T2，我们需要T2作为参数类型 *)
+    exists T2.
+    split.
+    + exact Hty1.
+    + exact Hty2.
+  - (* T_True *)
+    (* true不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_False *)
+    (* false不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_If *)
+    (* 条件表达式不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_Unit *)
+    (* unit不等于函数应用，矛盾 *)
+    discriminate Heq.
+  - (* T_Sub *)
+    (* 递归应用归纳假设 *)
+    destruct (IHHty Heq) as [T1' [Hty1 Hty2]].
+    exists T1'.
+    split.
+    + (* 需要将 t1 : T1' -> T1 提升为 t1 : T1' -> T2 *)
+      apply T_Sub with <{{ T1' -> T1 }}>.
+      * exact Hty1.
+      * apply S_Arrow.
+        -- apply S_Refl.
+        -- exact H.
+    + exact Hty2.
+Qed.
 (** [] *)
 
 Lemma typing_inversion_unit : forall Gamma T,
@@ -1459,7 +1623,7 @@ Qed.
     The _substitution lemma_ is proved as for pure STLC, but using
     induction on the typing derivation this time (see Exercise
     substitution_preserves_typing_from_typing_ind in StlcProp.v). *)
-
+Require Import FunctionalExtensionality.
 Lemma substitution_preserves_typing : forall Gamma x U t v T,
    <{ x |-> U ; Gamma |-- t \in T }> ->
    <{ empty |-- v \in U }>  ->
@@ -1469,7 +1633,52 @@ Proof.
   remember (x |-> U; Gamma) as Gamma'.
   generalize dependent Gamma.
   induction Ht; intros Gamma' G; simpl; eauto.
- (* FILL IN HERE *) Admitted.
+  - (* T_Var *)
+    (* 变量情况：需要判断是被替换的变量还是其他变量 *)
+    destruct (String.eqb x x0) eqn:Heq.
+    + (* x = x0，替换发生 *)
+      (* 从G : x |-> U; Gamma = Gamma' 和 H : Gamma' x0 = Some T1 *)
+      (* 得到 U = T1，所以 v : U = T1 *)
+      apply String.eqb_eq in Heq. subst.
+      rewrite update_eq in H.
+      injection H as HeqT. subst.
+      (* 需要将 v : U 从空上下文提升到 Gamma 上下文 *)
+      apply weakening_empty. exact Hv.
+    + (* x ≠ x0，不替换 *)
+      apply String.eqb_neq in Heq.
+      apply T_Var.
+      (* 从 G: Gamma = x |-> U; Gamma' 和 H: Gamma x0 = Some T1 *)
+      (* 以及 Heq: x <> x0，我们需要证明 Gamma' x0 = Some T1 *)
+      rewrite G in H.
+      rewrite update_neq in H; [exact H | exact Heq].
+  - (* T_Abs *)
+    (* lambda抽象情况 *)
+    destruct (String.eqb x x0) eqn:Heq.
+    + (* x = x0，变量被遮蔽，不需要替换 *)
+      apply String.eqb_eq in Heq. subst.
+      apply T_Abs.
+         (* 使用上下文等价性 *)
+      assert (Heq_ctx: <{ x0 |-> T2; x0 |-> U; Gamma' }> = <{ x0 |-> T2; Gamma' }>).
+      { 
+        apply functional_extensionality. 
+        intros y.
+        destruct (String.eqb x0 y) eqn:Heq_y.
+        - apply String.eqb_eq in Heq_y. subst.
+          repeat rewrite update_eq. reflexivity.
+        - apply String.eqb_neq in Heq_y.
+          repeat rewrite update_neq; auto.
+      }
+      rewrite <- Heq_ctx.
+      exact Ht.
+    + (* x ≠ x0，递归处理函数体 *)
+      apply T_Abs.
+      apply IHHt.
+      rewrite G.
+      rewrite update_permute.
+      -- reflexivity.
+      -- apply String.eqb_neq. exact Heq.
+Qed.
+
 
 (* ================================================================= *)
 (** ** Preservation *)
@@ -1696,7 +1905,11 @@ Theorem formal_subtype_instances_tf_1a:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ T->S }}> <: <{{ T->S }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. (* 选择真，因为命题是真的 *)
+  intros S T U V HST HUV.
+  (* T->S <: T->S 由反射性直接得出 *)
+  apply S_Refl.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1b) *)
@@ -1704,7 +1917,15 @@ Theorem formal_subtype_instances_tf_1b:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ Top->U }}> <: <{{ S->Top }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. (* 选择真，因为命题是真的 *)
+  intros S T U V HST HUV.
+  (* 使用函数子类型规则 S_Arrow *)
+  apply S_Arrow.
+  - (* 需要证明 S <: Top *)
+    apply S_Top.
+  - (* 需要证明 U <: Top *)
+    apply S_Top.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1c) *)
@@ -1712,7 +1933,19 @@ Theorem formal_subtype_instances_tf_1c:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ (C->C)->(A*B) }}> <: <{{ (C->C)->(Top*B) }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. (* 选择真，因为命题是真的 *)
+  intros S T U V HST HUV.
+  (* 使用函数子类型规则 S_Arrow *)
+  apply S_Arrow.
+  - (* 需要证明 (C->C) <: (C->C) *)
+    apply S_Refl.
+  - (* 需要证明 (A*B) <: (Top*B) *)
+    apply S_Prod.
+    + (* 需要证明 A <: Top *)
+      apply S_Top.
+    + (* 需要证明 B <: B *)
+      apply S_Refl.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1d) *)
@@ -1720,7 +1953,8 @@ Theorem formal_subtype_instances_tf_1d:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ T->(T->U) }}> <: <{{ S->(S->V) }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+
+Admitted.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1e) *)
@@ -1728,7 +1962,8 @@ Theorem formal_subtype_instances_tf_1e:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ (T->T)->U }}> <: <{{ (S->S)->V }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+
+Admitted.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1f) *)
