@@ -1953,8 +1953,20 @@ Theorem formal_subtype_instances_tf_1d:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ T->(T->U) }}> <: <{{ S->(S->V) }}>).
 Proof.
-
-Admitted.
+  left. (* 选择真，因为命题是真的 *)
+  intros S T U V HST HUV.
+  (* 要证明 T->(T->U) <: S->(S->V) *)
+  (* 使用函数子类型规则 S_Arrow *)
+  apply S_Arrow.
+  - (* 需要证明 S <: T （参数类型逆变）*)
+    exact HST.
+  - (* 需要证明 T->U <: S->V （返回类型协变）*)
+    apply S_Arrow.
+    + (* 需要证明 S <: T （参数类型逆变）*)
+      exact HST.
+    + (* 需要证明 U <: V （返回类型协变）*)
+      exact HUV.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1e) *)
@@ -1962,8 +1974,73 @@ Theorem formal_subtype_instances_tf_1e:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ (T->T)->U }}> <: <{{ (S->S)->V }}>).
 Proof.
-
+  right. (* 选择假 *)
+  intro H.
+  (* 构造反例：设 S = A, T = Top, U = V = A *)
+  specialize (H A <{{ Top }}> A A).
+  assert (HA_Top : A <: <{{ Top }}>). { apply S_Top. }
+  assert (HA_A : A <: A). { apply S_Refl. }
+  specialize (H HA_Top HA_A).
+  inversion H; subst.
+  - admit.
+  - inversion H3; subst.
+    + admit.
+    + apply sub_inversion_Top in H4.
+      discriminate H4.
 Admitted.
+
+(* 重要的例子 *)
+Theorem formal_subtype_instances_tf_1e_2:
+  TF (forall S T U V, S <: T -> U <: V ->
+         <{{ (T->T)->U }}> <: <{{ (S->S)->V }}>).
+Proof.
+ right. (* 选择假 *)
+  intro H.
+  (* 构造反例：设 S = A, T = Top, U = V = A *)
+  specialize (H A <{{ Top }}> A A).
+  assert (HA_Top : A <: <{{ Top }}>). { apply S_Top. }
+  assert (HA_A : A <: A). { apply S_Refl. }
+  specialize (H HA_Top HA_A).
+  (* 现在 H: (Top->Top)->A <: (A->A)->A *)
+  
+  (* 根据函数子类型规则，这要求：
+     1. (A->A) <: (Top->Top) （参数逆变）
+     2. A <: A （返回协变）*)
+     
+  (* 第1个条件需要：Top <: A 和 A <: Top *)
+  (* 我们有 A <: Top，但 Top <: A 不成立 *)
+  
+  (* 使用 sub_inversion_arrow 分解 H *)
+  apply sub_inversion_arrow in H.
+  destruct H as [U1 [U2 [HeqH [H_param H_ret]]]].
+  (* HeqH: (Top->Top)->A = U1->U2 *)
+  (* H_param: (A->A) <: U1 *)
+  (* H_ret: U2 <: A *)
+  
+  injection HeqH as HeqU1 HeqU2.
+  (* HeqU1: Top->Top = U1, HeqU2: A = U2 *)
+  subst U1 U2.
+  (* 现在 H_param: (A->A) <: (Top->Top) *)
+  
+  (* 使用 sub_inversion_arrow 分解 H_param *)
+  apply sub_inversion_arrow in H_param.
+  destruct H_param as [V1 [V2 [HeqParam [H_arg H_res]]]].
+  (* HeqParam: A->A = V1->V2 *)
+  (* H_arg: Top <: V1 *)
+  (* H_res: V2 <: Top *)
+  
+  injection HeqParam as HeqV1 HeqV2.
+  (* HeqV1: A = V1, HeqV2: A = V2 *)
+  subst V1 V2.
+  (* 现在 H_arg: Top <: A *)
+  
+  (* 但是 Top <: A 是不可能的，因为 A 只是一个基础类型 *)
+  (* 使用 sub_inversion_Top 来得到矛盾 *)
+  remember A as A_type.
+  destruct A_type; try discriminate.
+  apply sub_inversion_Top in H_arg.
+  discriminate H_arg.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1f) *)
@@ -1971,7 +2048,23 @@ Theorem formal_subtype_instances_tf_1f:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ ((T->S)->T)->U }}> <: <{{ ((S->T)->S)->V }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. (* 选择真 *)
+  intros S T U V HST HUV.
+  (* 要证明 ((T->S)->T)->U <: ((S->T)->S)->V *)
+  apply S_Arrow.
+  - (* 需要证明 (S->T)->S <: (T->S)->T（参数逆变）*)
+    apply S_Arrow.
+    + (* 需要证明 T->S <: S->T（参数逆变）*)
+      apply S_Arrow.
+      * (* 需要证明 S <: T（参数逆变）*)
+        exact HST.
+      * (* 需要证明 S <: T（返回协变）*)
+        exact HST.
+    + (* 需要证明 S <: T（返回协变）*)
+      exact HST.
+  - (* 需要证明 U <: V（返回协变）*)
+    exact HUV.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1g) *)
@@ -1979,7 +2072,23 @@ Theorem formal_subtype_instances_tf_1g:
   TF (forall S T U V, S <: T -> U <: V ->
          <{{ S*V }}> <: <{{ T*U }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  right. (* 选择假 *)
+  intro H.
+  (* 构造反例：设 S = T = A, U = A, V = Top *)
+  specialize (H A A A <{{ Top }}>).
+  assert (HAA : A <: A). { apply S_Refl. }
+  assert (HA_Top : A <: <{{ Top }}>). { apply S_Top. }
+  specialize (H HAA HA_Top).
+  (* H 现在是 A*Top <: A*A *)
+  (* 根据积类型子类型规则，这需要 Top <: A *)
+  inversion H; subst.
+  - (* S_Trans: 传递性，复杂 *)
+    admit.
+  - (* S_Prod: 关键情况 *)
+    (* H0: A <: A, H1: Top <: A *)
+    apply sub_inversion_Top in H5.
+    discriminate H5.
+Admitted.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2a) *)
@@ -1988,7 +2097,23 @@ Theorem formal_subtype_instances_tf_2a:
          S <: T ->
          <{{ S->S }}> <: <{{ T->T }}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  right. (* 选择假 *)
+  intro H.
+  (* 构造反例：设 S = A, T = Top *)
+  specialize (H A <{{ Top }}>).
+  assert (HA_Top : A <: <{{ Top }}>). { apply S_Top. }
+  specialize (H HA_Top).
+  (* H 现在是 A->A <: Top->Top *)
+  (* 根据函数子类型规则，这需要 Top <: A 和 A <: Top *)
+  (* 我们有 A <: Top，但 Top <: A 不成立 *)
+  inversion H; subst.
+  - (* S_Trans: 传递性，复杂 *)
+    admit.
+  - (* S_Arrow: 关键情况 *)
+    (* H0: Top <: A, H1: A <: Top *)
+    apply sub_inversion_Top in H3.
+    discriminate H3.
+Admitted.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2b) *)
