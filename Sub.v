@@ -2041,6 +2041,45 @@ Proof.
   apply sub_inversion_Top in H_arg.
   discriminate H_arg.
 Qed.
+
+Theorem formal_subtype_instances_tf_1e_3:
+  TF (forall S T U V, S <: T -> U <: V ->
+         <{{ (T->T)->U }}> <: <{{ (S->S)->V }}>).
+Proof.
+  right. (* 选择假 *)
+  intro H.
+  
+  (* 构造具体的反例 *)
+  (* 设 S = Bool, T = Top, U = Bool, V = Top *)
+  specialize (H <{{ Bool }}> <{{ Top }}> <{{ Bool }}> <{{ Top }}>).
+  
+  assert (H1 : <{{ Bool }}> <: <{{ Top }}>). { apply S_Top. }
+  assert (H2 : <{{ Bool }}> <: <{{ Top }}>). { apply S_Top. }
+  
+  specialize (H H1 H2).
+  (* 现在 H: (Top->Top)->Bool <: (Bool->Bool)->Top *)
+  
+  (* 根据函数子类型规则 S_Arrow，这需要：
+     1. (Bool->Bool) <: (Top->Top) 
+     2. Bool <: Top *)
+  
+  (* 条件2成立，但条件1需要：Top <: Bool 和 Bool <: Top *)
+  (* Top <: Bool 是不可能的 *)
+  
+  apply sub_inversion_arrow in H.
+  destruct H as [U1 [U2 [Heq [Harg Hret]]]].
+  injection Heq as Heq1 Heq2. subst U1 U2.
+  
+  (* Harg: (Bool->Bool) <: (Top->Top) *)
+  apply sub_inversion_arrow in Harg.
+  destruct Harg as [V1 [V2 [Heq' [Harg1 Harg2]]]].
+  injection Heq' as Heq1' Heq2'. subst V1 V2.
+  
+  (* Harg1: Top <: Bool，这是不可能的 *)
+  apply sub_inversion_Top in Harg1.
+  discriminate Harg1.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1f) *)

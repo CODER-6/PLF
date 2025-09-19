@@ -336,12 +336,34 @@ Fixpoint type_check (Gamma : context) (t : tm) : option ty :=
       | _ => fail
       end
 
-  (* Complete the following cases. *)
-
   (* sums *)
-  (* FILL IN HERE *)
-  (* lists (the [tm_lcase] is given for free) *)
-  (* FILL IN HERE *)
+  | <{ inl T2 t1 }> =>
+      T1 <- type_check Gamma t1 ;;
+      return <{{T1 + T2}}>
+  | <{ inr T1 t2 }> =>
+      T2 <- type_check Gamma t2 ;;
+      return <{{T1 + T2}}>
+  | <{ case t0 of | inl x1 => t1 | inr x2 => t2 }> =>
+      T0 <- type_check Gamma t0 ;;
+      match T0 with
+      | <{{T1 + T2}}> =>
+          T1' <- type_check (x1 |-> T1 ; Gamma) t1 ;;
+          T2' <- type_check (x2 |-> T2 ; Gamma) t2 ;;
+          if eqb_ty T1' T2' then return T1' else fail
+      | _ => fail
+      end
+
+  (* lists *)
+  | <{ nil T }> =>
+      return <{{List T}}>
+  | <{ t1 :: t2 }> =>
+      T1 <- type_check Gamma t1 ;;
+      T2 <- type_check Gamma t2 ;;
+      match T2 with
+      | <{{List T}}> =>
+          if eqb_ty T1 T then return <{{List T}}> else fail
+      | _ => fail
+      end
   | <{ case t0 of | nil => t1 | x21 :: x22 => t2 }> =>
       T0 <- type_check Gamma t0 ;;
       match T0 with
@@ -351,15 +373,43 @@ Fixpoint type_check (Gamma : context) (t : tm) : option ty :=
           if eqb_ty T1 T2 then return T1 else fail
       | _ => fail
       end
+
   (* unit *)
-  (* FILL IN HERE *)
+  | <{ unit }> =>
+      return <{{Unit}}>
+
   (* pairs *)
-  (* FILL IN HERE *)
+  | <{ (t1, t2) }> =>
+      T1 <- type_check Gamma t1 ;;
+      T2 <- type_check Gamma t2 ;;
+      return <{{T1 * T2}}>
+  | <{ t.fst }> =>
+      T <- type_check Gamma t ;;
+      match T with
+      | <{{T1 * T2}}> => return T1
+      | _ => fail
+      end
+  | <{ t.snd }> =>
+      T <- type_check Gamma t ;;
+      match T with
+      | <{{T1 * T2}}> => return T2
+      | _ => fail
+      end
+
   (* let *)
-  (* FILL IN HERE *)
+  | <{ let x = t1 in t2 }> =>
+      T1 <- type_check Gamma t1 ;;
+      T2 <- type_check (x |-> T1 ; Gamma) t2 ;;
+      return T2
+
   (* fix *)
-  (* FILL IN HERE *)
-  | _ => None  (* ... and delete this line when you complete the exercise. *)
+  | <{ fix t1 }> =>
+      T1 <- type_check Gamma t1 ;;
+      match T1 with
+      | <{{T -> T'}}> =>
+          if eqb_ty T T' then return T else fail
+      | _ => fail
+      end
   end.
 (* Do not modify the following line: *)
 Definition manual_grade_for_type_check_defn : option (nat*string) := None.
@@ -424,26 +474,71 @@ Proof with eauto.
     destruct T1; try solve_by_invert.
     case_equality T2 T3.
   (* Complete the following cases. *)
+
   (* sums *)
-  (* FILL IN HERE *)
-  (* lists (the [tm_lcase] is given for free) *)
-  (* FILL IN HERE *)
-  - (* tlcase *)
-    rename s into x31, s0 into x32.
-    fully_invert_typecheck Gamma t1 T1 T11 T12.
+  - (* inl *)
+    rename t into t1, t0 into T2.
+    invert_typecheck Gamma T2 T1.
+  - (* inr *)
+    rename t into T1, t0 into t2.
     invert_typecheck Gamma t2 T2.
-    remember (x31 |-> T11 ; x32 |-> <{{List T11}}> ; Gamma) as Gamma'2.
-    invert_typecheck Gamma'2 t3 T3.
-    case_equality T2 T3.
+  - (* case sums *)
+    rename s into x1, s0 into x2.
+    invert_typecheck Gamma t1 T0.
+    analyze T0 T1 T2.
+    invert_typecheck (x1 |-> T1; Gamma) t2 T1'.
+    invert_typecheck (x2 |-> T2; Gamma) t3 T2'.
+    case_equality T1' T2'.
+
+  (* lists *)
+  - (* nil *)
+    rename t into T1. eauto.
+  - (* cons *)
+    invert_typecheck Gamma t1 T1.
+    invert_typecheck Gamma t2 T2.
+    analyze T2 T11 T12.
+    case_equality T1 T11.
+  - (* case lists - already provided *)
+    rename s into x21, s0 into x22.
+    invert_typecheck Gamma t1 T0.
+    analyze T0 T11 T12.
+    invert_typecheck Gamma t2 T1.
+    invert_typecheck (x21 |-> T11; x22 |-> <{{List T11}}>; Gamma) t3 T2.
+    case_equality T1 T2.
+
   (* unit *)
-  (* FILL IN HERE *)
+  - (* unit *) eauto.
+
   (* pairs *)
-  (* FILL IN HERE *)
+  - (* pair *)
+    invert_typecheck Gamma t1 T1.
+    invert_typecheck Gamma t2 T2.
+  - (* fst *)
+    invert_typecheck Gamma t T'.
+    analyze T' T1 T2.
+    inversion H1; subst.
+    symmetry in HeqTO.
+    apply IHt in HeqTO.
+    eauto.
+  - (* snd *)
+    invert_typecheck Gamma t T'.
+    analyze T' T1 T2.
+    inversion H1; subst.
+    symmetry in HeqTO.
+    apply IHt in HeqTO.
+    eauto.
   (* let *)
-  (* FILL IN HERE *)
+  - (* let *)
+    rename s into x.
+    invert_typecheck Gamma t1 T1.
+    invert_typecheck (x |-> T1; Gamma) t2 T2.
+
   (* fix *)
-  (* FILL IN HERE *)
-  (* FILL IN HERE *) Admitted.
+  - (* fix *)
+    invert_typecheck Gamma t T'.
+    analyze T' T1 T2.
+    case_equality T1 T2.
+Qed.  
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (ext_type_checking_complete) *)
@@ -463,8 +558,10 @@ Proof.
     try (rewrite (eqb_ty_refl T3));
     eauto.
     - destruct (Gamma _); [assumption| solve_by_invert].
+    - rewrite (eqb_ty_refl T).
+      reflexivity.
   (* The above proof script suffices for the reference solution. *)
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *) Qed.
 (** [] *)
 
 End TypecheckerExtensions.
@@ -488,10 +585,29 @@ Fixpoint valuef (t : tm) : bool :=
   | <{ _ _ }> => false
   | tm_const _ => true
   | <{ succ _ }> | <{ pred _ }> | <{ _ * _ }> | <{ if0 _ then _ else _ }> => false
-  (* Complete the following cases *)
+  
   (* sums *)
-  (* FILL IN HERE *)
-  | _ => false  (* ... and delete this line when you complete the exercise. *)
+  | <{ inl T2 v }> => valuef v
+  | <{ inr T1 v }> => valuef v
+  | <{ case t0 of | inl x1 => t1 | inr x2 => t2 }> => false
+  
+  (* lists *)
+  | <{ nil T }> => true
+  | <{ v1 :: v2 }> => andb (valuef v1) (valuef v2)
+  | <{ case t0 of | nil => t1 | x21 :: x22 => t2 }> => false
+  
+  (* unit *)
+  | <{ unit }> => true
+  
+  (* pairs *)
+  | <{ (v1, v2) }> => andb (valuef v1) (valuef v2)
+  | <{ _.fst }> | <{ _.snd }> => false
+  
+  (* let *)
+  | <{ let _ = _ in _ }> => false
+  
+  (* fix *)
+  | <{ fix _ }> => false
   end.
 (* Do not modify the following line: *)
 Definition manual_grade_for_valuef_defn : option (nat*string) := None.
@@ -552,11 +668,39 @@ Fixpoint stepf (t : tm) : option tm :=
     | None, tm_const (S _) => Some f
     | _, _ => None
     end
-  (* Complete the following cases. *)
+
   (* sums *)
-  (* FILL IN HERE *)
-  (* lists (the [tm_lcase] is given for free) *)
-  (* FILL IN HERE *)
+  | <{ inl T2 t1 }> =>
+    match stepf t1 with
+    | Some t1' => Some <{ inl T2 t1' }>
+    | None => None  (* inl v is a value when v is a value *)
+    end
+  | <{ inr T1 t2 }> =>
+    match stepf t2 with
+    | Some t2' => Some <{ inr T1 t2' }>
+    | None => None  (* inr v is a value when v is a value *)
+    end
+  | <{ case t0 of | inl x1 => t1 | inr x2 => t2 }> =>
+    match stepf t0, t0 with
+    | Some t0', _ => Some <{ case t0' of | inl x1 => t1 | inr x2 => t2 }>
+    (* otherwise [t0] is a normal form *)
+    | None, <{ inl T v }> =>
+      assert (valuef v) (Some <{ [x1:=v]t1 }>)
+    | None, <{ inr T v }> =>
+      assert (valuef v) (Some <{ [x2:=v]t2 }>)
+    | None, _ => None
+    end
+
+  (* lists *)
+  | <{ nil T }> => None (* nil is a value *)
+  | <{ t1 :: t2 }> =>
+    match stepf t1, stepf t2 with
+    | Some t1', _ => Some <{ t1' :: t2 }>
+    (* otherwise [t1] is a normal form *)
+    | None, Some t2' => assert (valuef t1) (Some <{ t1 :: t2' }>)
+    (* otherwise both are normal forms - cons is a value when both are values *)
+    | None, None => None
+    end
   | <{ case t0 of | nil => t1 | x21 :: x22 => t2 }> =>
     match stepf t0, t0 with
     | Some t0', _ => Some <{ case t0' of | nil => t1 | x21 :: x22 => t2 }>
@@ -567,15 +711,52 @@ Fixpoint stepf (t : tm) : option tm :=
         (Some <{ [x22:=vt]([x21:=vh]t2) }> ))
     | None, _ => None
     end
+
   (* unit *)
-  (* FILL IN HERE *)
+  | <{ unit }> => None (* unit is a value *)
+
   (* pairs *)
-  (* FILL IN HERE *)
+  | <{ (t1, t2) }> =>
+    match stepf t1, stepf t2 with
+    | Some t1', _ => Some <{ (t1', t2) }>
+    (* otherwise [t1] is a normal form *)
+    | None, Some t2' => assert (valuef t1) (Some <{ (t1, t2') }>)
+    (* otherwise both are normal forms - pair is a value when both are values *)
+    | None, None => None
+    end
+  | <{ t.fst }> =>
+    match stepf t, t with
+    | Some t', _ => Some <{ t'.fst }>
+    (* otherwise [t] is a normal form *)
+    | None, <{ (v1, v2) }> =>
+      assert (valuef v1) (assert (valuef v2) (Some v1))
+    | None, _ => None
+    end
+  | <{ t.snd }> =>
+    match stepf t, t with
+    | Some t', _ => Some <{ t'.snd }>
+    (* otherwise [t] is a normal form *)
+    | None, <{ (v1, v2) }> =>
+      assert (valuef v1) (assert (valuef v2) (Some v2))
+    | None, _ => None
+    end
+
   (* let *)
-  (* FILL IN HERE *)
+  | <{ let x = t1 in t2 }> =>
+    match stepf t1 with
+    | Some t1' => Some <{ let x = t1' in t2 }>
+    (* otherwise [t1] is a normal form *)
+    | None => assert (valuef t1) (Some <{ [x:=t1]t2 }>)
+    end
+
   (* fix *)
-  (* FILL IN HERE *)
-   | _ => None  (* ... and delete this line when you complete the exercise. *)
+  | <{ fix t1 }> =>
+    match stepf t1, t1 with
+    | Some t1', _ => Some <{ fix t1' }>
+    (* otherwise [t1] is a normal form *)
+    | None, <{ \x:T, t11 }> => Some <{ [x:=<{fix (\x:T, t11)}>]t11 }>
+    | None, _ => None
+    end
   end.
 (* Do not modify the following line: *)
 Definition manual_grade_for_stepf_defn : option (nat*string) := None.
@@ -591,7 +772,10 @@ Definition manual_grade_for_stepf_defn : option (nat*string) := None.
 Lemma sound_valuef : forall t,
     valuef t = true -> value t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t. induction t; simpl; intros H; try discriminate H; try constructor; try apply IHt; try auto; 
+  try apply andb_true_iff in H;
+  try apply IHt1; destruct H; try auto.
+(* FILL IN HERE *) Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (complete_valuef) *)
@@ -600,7 +784,13 @@ Proof.
 Lemma complete_valuef : forall t,
     value t -> valuef t = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t H. induction H; simpl; auto; try discriminate IHvalue.
+  -rewrite IHvalue1, IHvalue2.
+   reflexivity.
+  -rewrite IHvalue1, IHvalue2.
+   reflexivity.
+
+  (* FILL IN HERE *) Qed.
 (** [] *)
 
 (* Soundness of [stepf]:
@@ -648,7 +838,7 @@ Proof.
   induction t; simpl; intros t' H;
     auto_stepf H.
  (* The above proof script suffices for the reference solution. *)
- (* FILL IN HERE *) Admitted.
+ (* FILL IN HERE *) Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (value_stepf_nf) *)
@@ -657,14 +847,33 @@ Proof.
 Lemma value_stepf_nf : forall t,
     value t -> stepf t = None.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t H.
+  induction H; simpl; auto;
+  try auto_stepf IHvalue;
+  try rewrite IHvalue;
+  try reflexivity.
+  -  rewrite IHvalue1, IHvalue2.
+     reflexivity.
+  -  rewrite IHvalue1, IHvalue2.
+     reflexivity.
+(* FILL IN HERE *) Qed.
 (** [] *)
+
 
 (** **** Exercise: 2 stars, standard, optional (complete_stepf) *)
 (* Completeness of [stepf]. *)
 Theorem complete_stepf : forall t t',
     t --> t'  ->  stepf t = Some t'.
 Proof.
+  intros t t' H.
+  induction H; simpl; auto.
+  - rewrite (value_stepf_nf _ H).
+    rewrite (complete_valuef _ H).
+    simpl.
+    reflexivity.
+  - 
+
+  
   (* FILL IN HERE *) Admitted.
 (** [] *)
 
