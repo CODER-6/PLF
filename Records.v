@@ -436,7 +436,57 @@ Lemma typing_example_2 :
   <{ empty |-- (\a : ( i1 : (A -> A) :: i2 : (B -> B) :: nil), a --> i2)
             ( i1 := (\a : A, a) :: i2 := (\a : B,a ) :: nil )  \in B -> B }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* 使用 T_App 规则，指定函数的输入类型 T1 *)
+  apply T_App with (T1 := <{{ i1 : (A -> A) :: i2 : (B -> B) :: nil }}>).
+  - (* 证明函数部分的类型正确：(\a : record_type, a --> i2) : record_type -> B -> B *)
+    apply T_Abs.
+    + (* 证明参数类型是良构的 *)
+      auto.
+    + (* 证明函数体 (a --> i2) 在上下文中有类型 B -> B *)
+      apply T_Proj with (Tr := <{{ i1 : (A -> A) :: i2 : (B -> B) :: nil }}>).
+      * (* 证明变量 a 在上下文中有记录类型 *)
+        apply T_Var.
+        -- (* 证明 a 在上下文中 *)
+           simpl. reflexivity.
+        -- (* 证明记录类型是良构的 *)
+           auto.
+      * (* 证明 i2 字段查找成功，返回类型 B -> B *)
+        simpl. reflexivity.
+  - (* 证明参数部分的类型正确：记录有正确的类型 *)
+    apply T_RCons.
+    + (* 证明第一个字段 i1 := (\a : A, a) 有类型 A -> A *)
+      apply T_Abs.
+      * (* 证明 A 是良构类型 *)
+        auto.
+      * (* 证明函数体 a 在上下文中有类型 A *)
+        apply T_Var.
+        -- (* 证明 a 在上下文中 *)
+           simpl. reflexivity.
+        -- (* 证明 A 是良构类型 *)
+           auto.
+    + (* 证明记录的剩余部分有正确类型 *)
+      apply T_RCons.
+      * (* 证明第二个字段 i2 := (\a : B, a) 有类型 B -> B *)
+        apply T_Abs.
+        -- (* 证明 B 是良构类型 *)
+           auto.
+        -- (* 证明函数体 a 在上下文中有类型 B *)
+           apply T_Var.
+           ++ (* 证明 a 在上下文中 *)
+              simpl. reflexivity.
+           ++ (* 证明 B 是良构类型 *)
+              auto.
+      * (* 证明空记录有正确类型 *)
+        apply T_RNil.
+      * (* 证明尾部是记录类型 *)
+        auto.
+      * (* 证明尾部是记录项 *)
+        auto.
+    + (* 证明外层尾部是记录类型 *)
+      auto.
+    + (* 证明外层尾部是记录项 *)
+      auto.
+Qed.
 
 Example typing_nonexample :
   ~ exists T,
@@ -444,7 +494,16 @@ Example typing_nonexample :
        ( i1 := (\a : B, a) :: a ) \in
                T }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* 假设存在这样的类型 T *)
+  intros [T H].
+  (* 对类型推导进行反向分析 *)
+  inversion H; subst.
+  (* 根据 T_RCons 规则，我们需要证明 a 满足 record_tm *)
+  (* 但是 a 是一个变量，不可能满足 record_tm *)
+  inversion H7.
+  (* record_tm 只有两个构造子：rtnil 和 rtcons *)
+  (* 变量 a 不匹配任何一个构造子 *)
+Qed.
 
 Example typing_nonexample_2 : forall y,
   ~ exists T,
@@ -452,8 +511,22 @@ Example typing_nonexample_2 : forall y,
      (\a : ( i1 : A  :: nil ), a --> i1 )
       ( i1 := y :: i2 := y :: nil )  \in T }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  (* 假设存在这样的类型 T *)
+  intros y [T H].
+  (* 对类型推导进行反向分析 *)
+  inversion H; subst.
+  (* 函数期望参数类型 T1，实际参数必须有类型 T1 *)
+  inversion H2; subst.
+  (* 函数期望参数类型是 i1 : A :: nil *)
+  (* 但实际参数是 i1 := y :: i2 := y :: nil *)
+  (* 实际参数的类型应该是 i1 : A :: i2 : A :: nil *)
+  inversion H4; subst.
+  (* 检查参数的类型推导 *)
+  (* 从 H10 我们得到 "i2" := y :: nil 有类型 nil *)
+  (* 但这是不可能的，因为非空记录不能有空记录类型 *)
+  inversion H10.
+  (* T_RCons 规则要求尾部是记录类型，但 nil 不能是 T_RCons 的结论 *)
+Qed.
 
 (* ================================================================= *)
 (** ** Properties of Typing *)
