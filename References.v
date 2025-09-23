@@ -1065,13 +1065,52 @@ Naturally, the key question is, "What is the type of a location?"
 
     Can you find a term whose reduction will create this particular
     cyclic store? *)
+Definition cyclic_program_v1 : tm :=
+  <{ (ref (\x:Nat, (!(loc 1)) x)); 
+     (ref (\x:Nat, (!(loc 0)) x)); 
+     unit }>.
+Definition cyclic_program_v2 : tm :=
+  <{ (\x:Unit, unit) ((ref (\x:Nat, (!(loc 1)) x)); (ref (\x:Nat, (!(loc 0)) x))) }>.
 
 Theorem cyclic_store:
   exists t,
     t / nil -->*
     <{ unit }> / (<{ \x:Nat, (!(loc 1)) x }> :: <{ \x:Nat, (!(loc 0)) x }> :: nil).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists cyclic_program_v2.
+  unfold cyclic_program_v2.
+  
+  
+  (* Step 1: 归约参数中序列的第一个 ref *)
+  eapply multi_step.
+  { apply ST_App2.
+    - apply v_abs.  (* 外层函数是值 *)
+    - apply ST_App2.
+      + apply v_abs.  (* 序列内层函数是值 *)
+      + apply ST_RefValue.
+        apply v_abs. }  (* ref 的参数是值 *)
+  
+  (* Step 2: 应用序列内层函数 *)
+  eapply multi_step.
+  { apply ST_App2.
+    - apply v_abs.
+    - apply ST_AppAbs.
+      apply v_loc. }
+  
+  (* Step 3: 归约序列内部的第二个 ref *)
+  eapply multi_step.
+  { apply ST_App2.
+    - apply v_abs.
+    - apply ST_RefValue.
+      apply v_abs. }
+  
+  (* 现在参数应该是 unit，可以应用外层函数 *)
+  eapply multi_step.
+  { apply ST_AppAbs.
+    apply v_loc. }
+  
+  apply multi_refl.
+Qed.
 (** [] *)
 
 (** These problems arise from the fact that our proposed
@@ -1301,6 +1340,7 @@ Theorem store_not_unique:
     store_well_typed ST2 st /\
     ST1 <> ST2.
 Proof.
+  (* 是不是存在？ *)
   (* FILL IN HERE *) Admitted.
 (** [] *)
 
@@ -1936,13 +1976,30 @@ Qed.
     behaves like the factorial.  Just uncomment the example below to make
     sure it gives the correct result when applied to the argument
     [4].) *)
+Definition n := "n".
+Definition f := "f".
+Definition m := "m".
 
-Definition factorial : tm
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+
+Definition factorial : tm :=
+  <{ \n:Nat,
+       (\f : Ref (Nat -> Nat),
+          (f := (\m:Nat, if0 m then 1 else m * ((!f) (pred m))));
+          (!f) n)
+       (ref (\x:Nat, 1)) }>.
 
 Lemma factorial_type : <{ empty / nil |-- factorial \in (Nat -> Nat) }>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  unfold factorial.
+  apply T_Abs.
+  eapply T_App...
+  apply T_Abs.
+  eapply T_App...
+  - (* 证明 lambda 函数的类型 *)
+    (* apply T_Abs. *)
+    eapply T_App...
+
+Qed.
 
 (** If your definition is correct, you should be able to just
     uncomment the example below; the proof should be fully
