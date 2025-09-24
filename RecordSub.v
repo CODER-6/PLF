@@ -288,15 +288,37 @@ Example subtyping_example_1 :
   TRcd_kj <: TRcd_j.
 (* {k:A->A,j:B->B} <: {j:B->B} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  unfold TRcd_kj, TRcd_j.
+  (* 现在目标是: k : (A -> A) :: j : (B -> B) :: nil <: j : (B -> B) :: nil *)
+  apply S_Trans with <{{ "j" : B -> B :: nil }}>.
+  - eapply S_Trans.
+    + apply S_RcdPerm.
+      * apply wfRCons.
+        -- apply wfArrow; apply wfBase.
+        -- apply wfRCons.
+           ++ apply wfArrow; apply wfBase.
+           ++ apply wfRNil.
+           ++ apply RTnil.
+        -- apply RTcons.
+      * discriminate.
+    + apply S_RcdDepth.
+      * apply S_Refl...
+      * apply S_RcdWidth...
+      * auto.
+      * apply RTnil.
+  - auto. 
+Qed.
 
 (** **** Exercise: 1 star, standard (subtyping_example_2) *)
 Example subtyping_example_2 :
   <{{ Top -> TRcd_kj }}> <:
           <{{ (C -> C) -> TRcd_j }}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+    apply S_Arrow.
+    - apply S_Top. auto.
+    - apply subtyping_example_1.
+Qed.
+  
 (** [] *)
 
 (** **** Exercise: 1 star, standard (subtyping_example_3) *)
@@ -305,16 +327,63 @@ Example subtyping_example_3 :
           <{{ (k : B :: nil) -> nil }}>.
 (* {}->{j:A} <: {k:B}->{} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  apply S_Arrow.
+  - apply S_RcdWidth...
+  - apply S_RcdWidth...
+Qed.
 
 (** **** Exercise: 2 stars, standard (subtyping_example_4) *)
 Example subtyping_example_4 :
   <{{ x : A :: y : B :: z : C :: nil }}> <:
   <{{ z : C :: y : B :: x : A :: nil }}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  apply S_Trans with <{{ y : B :: x : A :: z : C :: nil }}>.
+  - (* 第一步：交换 x 和 y 的位置 *)
+    apply S_RcdPerm.
+    + (* 证明原类型是良构的 *)
+      apply wfRCons.
+      * apply wfBase.
+      * apply wfRCons.
+        -- apply wfBase.  
+        -- apply wfRCons.
+           ++ apply wfBase.
+           ++ apply wfRNil.
+           ++ apply RTnil.
+        -- apply RTcons.
+      * apply RTcons.
+    + (* 证明 x <> y *)
+      discriminate.
+  - (* 第二步：从 y:B :: x:A :: z:C :: nil 变到 z:C :: y:B :: x:A :: nil *)
+    (* 需要分两步来移动 z 到最前面 *)
+    eapply S_Trans.
+    + (* 第一步：交换 x 和 z，得到 y:B :: z:C :: x:A :: nil *)
+      apply S_RcdDepth.
+      * apply S_Refl; apply wfBase.
+      * apply S_RcdPerm.
+        -- apply wfRCons.
+           ++ apply wfBase.
+           ++ apply wfRCons.
+              ** apply wfBase.
+              ** apply wfRNil.
+              ** apply RTnil.
+           ++ apply RTcons.
+        -- discriminate.
+      * apply RTcons.
+      * apply RTcons.
+    + (* 第二步：交换 y 和 z，得到 z:C :: y:B :: x:A :: nil *)
+      apply S_RcdPerm.
+      * apply wfRCons.
+        -- apply wfBase.
+        -- apply wfRCons.
+           ++ apply wfBase.
+           ++ apply wfRCons.
+              ** apply wfBase.
+              ** apply wfRNil.
+              ** apply RTnil.
+           ++ apply RTcons.
+        -- apply RTcons.
+      * discriminate.
+Qed.
 
 End Examples.
 
@@ -417,7 +486,45 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember <{{ V1 -> V2 }}> as V.
   generalize dependent V2. generalize dependent V1.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; intros V1' V2' HeqV; subst.
+  - (* S_Refl *)
+    exists V1', V2'. 
+    split... split...
+    + apply S_Refl.
+      inversion H. exact H2.
+    + apply S_Refl...
+      inversion H. exact H3.
+  - (* S_Trans *)
+    (* S <: U <: V1' -> V2' *)
+    (* 首先使用 IHHs2 得到 U 必须是函数类型 *)
+    destruct (IHHs2 V1' V2' eq_refl) as [U1 [U2 [HeqU [Hsub1 Hsub2]]]].
+    (* 现在我们知道 U = U1 -> U2, V1' <: U1, U2 <: V2' *)
+    
+    (* 然后使用 IHHs1，现在我们知道 U 是函数类型 *)
+    destruct (IHHs1 U1 U2 HeqU) as [S1 [S2 [HeqS [Hsub3 Hsub4]]]].
+    (* 现在我们知道 S = S1 -> S2, U1 <: S1, S2 <: U2 *)
+    
+    (* 组合结果 *)
+    exists S1, S2.
+    split...
+  - (* S_Top *)
+    (* 不可能：没有类型是 Top 的子类型，除了 Top 本身 *)
+    inversion HeqV.
+  - (* S_Arrow *)
+    (* U1 -> U2 <: V1' -> V2' *)
+    inversion HeqV; subst.
+    exists S1, S2.
+    split...
+  - (* S_RcdWidth *)
+    (* 记录类型不能是函数类型的子类型 *)
+    inversion HeqV.
+  - (* S_RcdDepth *)
+    (* 记录类型不能是函数类型的子类型 *)
+    inversion HeqV.
+  - (* S_RcdPerm *)
+    (* 记录类型不能是函数类型的子类型 *)
+    inversion HeqV.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -478,8 +585,28 @@ Example typing_example_0 :
   empty |-- trcd_kj \in TRcd_kj.
 (* empty |-- {k=(\z:A.z), j=(\z:B.z)} : {k:A->A,j:B->B} *)
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  unfold trcd_kj, TRcd_kj, TRcd_j.
+  
+  (* 使用 T_RCons 规则 *)
+  apply T_RCons.
+  - 
+    apply T_Abs.
+    + apply wfBase.
+    + apply T_Var.
+      * apply update_eq.
+      * apply wfBase.
+  - apply T_RCons.
+    + apply T_Abs.
+      * apply wfBase.
+      * apply T_Var.
+        -- apply update_eq.
+        -- apply wfBase.
+    + apply T_RNil.
+    + apply RTnil.
+    + apply rtnil.
+  - apply RTcons.
+  - apply rtcons.
+Qed.
 
 (** **** Exercise: 2 stars, standard (typing_example_1) *)
 Example typing_example_1 :
@@ -488,8 +615,57 @@ Example typing_example_1 :
               {k=(\z:A,z), j=(\z:B,z)}
          : B->B *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  apply T_App with TRcd_j.
+  - (* 证明函数的类型：empty |-- (\x : TRcd_j, x --> j) \in (TRcd_j -> (B -> B)) *)
+    apply T_Abs.
+    + (* well_formed_ty TRcd_j *)
+      unfold TRcd_j.
+      apply wfRCons.
+      * apply wfArrow; apply wfBase.
+      * apply wfRNil.
+      * apply RTnil.
+    + (* (x |-> TRcd_j; empty) |-- x --> j \in (B -> B) *)
+      apply T_Proj with TRcd_j.
+      * (* (x |-> TRcd_j; empty) |-- x \in TRcd_j *)
+        apply T_Var.
+        -- apply update_eq.
+        -- unfold TRcd_j.
+           apply wfRCons.
+           ++ apply wfArrow; apply wfBase.
+           ++ apply wfRNil.
+           ++ apply RTnil.
+      * (* Tlookup j TRcd_j = Some (B -> B) *)
+        unfold TRcd_j.
+        simpl.
+        reflexivity.
+  - (* 证明参数的类型：empty |-- trcd_kj \in TRcd_j *)
+    (* 我们知道 trcd_kj : TRcd_kj，需要使用子类型规则 *)
+    apply T_Sub with TRcd_kj.
+    + (* empty |-- trcd_kj \in TRcd_kj *)
+      apply typing_example_0.
+    + (* TRcd_kj <: TRcd_j *)
+      apply subtyping_example_1.
+Qed.
+
+Lemma weakening : forall Gamma Gamma' t T,
+     includedin Gamma Gamma' ->
+     Gamma  |-- t \in T  ->
+     Gamma' |-- t \in T.
+Proof.
+  intros Gamma Gamma' t T H Ht.
+  generalize dependent Gamma'.
+  induction Ht; eauto using includedin_update.
+Qed.
+
+Lemma weakening_empty : forall Gamma t T,
+     empty |-- t \in T  ->
+     Gamma |-- t \in T.
+Proof.
+  intros Gamma t T.
+  eapply weakening.
+  discriminate.
+Qed.
+
 
 (** **** Exercise: 2 stars, standard, optional (typing_example_2) *)
 Example typing_example_2 :
@@ -499,8 +675,62 @@ Example typing_example_2 :
               (\z:C->C, {k=(\z:A,z), j=(\z:B,z)})
            : B->B *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  (* 这是一个函数应用，使用 T_App *)
+  apply T_App with <{{ (C -> C) -> TRcd_j }}>.
+  
+  - (* 证明第一个函数的类型 *)
+    apply T_Abs.
+    + (* well_formed_ty ((C -> C) -> TRcd_j) *)
+      apply wfArrow.
+      * apply wfArrow; apply wfBase.
+      * unfold TRcd_j.
+        apply wfRCons.
+        -- apply wfArrow; apply wfBase.
+        -- apply wfRNil.
+        -- apply RTnil.
+    + (* 证明函数体 (z (\x:C,x)) --> j 的类型是 B -> B *)
+      apply T_Proj with TRcd_j.
+      * (* 证明 (z (\x:C,x)) 的类型是 TRcd_j *)
+        apply T_App with <{{ C -> C }}>.
+        -- (* 证明 z 的类型是 (C -> C) -> TRcd_j *)
+           apply T_Var.
+           ++ apply update_eq.
+           ++ apply wfArrow.
+              ** apply wfArrow; apply wfBase.
+              ** unfold TRcd_j.
+                 apply wfRCons.
+                 --- apply wfArrow; apply wfBase.
+                 --- apply wfRNil.
+                 --- apply RTnil.
+        -- (* 证明 (\x:C,x) 的类型是 C -> C *)
+           apply T_Abs.
+           ++ apply wfBase.
+           ++ apply T_Var.
+              ** apply update_eq.
+              ** apply wfBase.
+      * (* Tlookup j TRcd_j = Some (B -> B) *)
+        unfold TRcd_j.
+        simpl.
+        reflexivity.
+        
+  - (* 证明第二个参数的类型是 (C -> C) -> TRcd_j *)
+    apply T_Sub with <{{ (C -> C) -> TRcd_kj }}>.
+    + (* 证明 (\z:(C->C), trcd_kj) 的类型是 (C -> C) -> TRcd_kj *)
+      apply T_Abs.
+      * apply wfArrow; apply wfBase.
+      * 
+        apply weakening_empty.
+        apply typing_example_0.
+
+
+    + (* 证明 ((C -> C) -> TRcd_kj) <: ((C -> C) -> TRcd_j) *)
+      apply S_Arrow.
+      * (* C -> C <: C -> C *)
+        apply S_Refl.
+        apply wfArrow; apply wfBase.
+      * (* TRcd_kj <: TRcd_j *)
+        apply subtyping_example_1.
+Qed.
 
 End Examples2.
 
@@ -569,8 +799,39 @@ Lemma canonical_forms_of_arrow_types : forall Gamma s T1 T2,
      exists x S1 s2,
         s = <{ \ x  : S1, s2 }>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros Gamma s T1 T2 Htyp Hval.
+  remember <{{ T1 -> T2 }}> as T.
+  generalize dependent T2. generalize dependent T1.
+  induction Htyp; intros T1' T2' HeqT; subst.
+  
+  - (* T_Var *)
+    inversion Hval.
+    
+  - (* T_Abs *)
+    inversion HeqT; subst.
+    exists x, T1', t12.
+    reflexivity.
+    
+  - (* T_App *)
+    inversion Hval.
+    
+  - (* T_Proj *)
+    inversion Hval.
+    
+  - (* T_Sub *)
+    (* 这里需要使用子类型逆向推理 *)
+    apply sub_inversion_arrow in H.
+    destruct H as [U1 [U2 [HeqS [Hsub1 Hsub2]]]].
+    subst.
+    apply (IHHtyp Hval U1 U2).
+    reflexivity.
+    
+  - (* T_RNil *)
+    inversion HeqT.
+    
+  - (* T_RCons *)
+    inversion HeqT.
+Qed.
 
 Theorem progress : forall t T,
      empty |-- t \in T ->
