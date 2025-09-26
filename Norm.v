@@ -671,7 +671,19 @@ Proof.
   eapply IHT2.
   apply  ST_App1. apply E.
   apply RRt; auto.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *) 
+    split.
+  - (* 保持类型 *)
+    eapply preservation; eauto.
+  - split.
+    + (* 保持停机性 *)
+      apply (step_preserves_halting _ _ E); eauto.
+    + (* 保持乘积类型特有的性质 *)
+      (* 这里需要根据 R 对 Prod 的具体定义来完成 *)
+      (* 如果定义是 False，那么这里应该是 exfalso *)
+      exfalso.
+      exact RRt.
+Qed.
 
 (** The generalization to multiple steps is trivial: *)
 
@@ -689,8 +701,55 @@ Qed.
 Lemma step_preserves_R' : forall T t t',
   empty |-- t \in T -> (t --> t') -> R T t' -> R T t.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+ induction T; intros t t' HT E Rt'; unfold R; fold R; unfold R in Rt'; fold R in Rt';
+                destruct Rt' as [typable_empty_t' [halts_t' RRt']].
+  
+  (* Bool *)
+  - split.
+    + (* empty |-- t \in Bool *)
+      assumption.
+    + split.
+      * (* halts t *)
+        apply (step_preserves_halting _ _ E).
+        assumption.
+      * (* True - Bool 类型没有额外条件 *)
+        auto.
+  
+  (* Arrow *)
+  - split.
+    + (* empty |-- t \in (T1 -> T2) *)
+      assumption.
+    + split.
+      * (* halts t *)
+        apply (step_preserves_halting _ _ E).
+        assumption.
+      * (* forall s, R T1 s -> R T2 <{t s}> *)
+        intros s Rs.
+        (* 我们需要证明 R T2 <{t s}>，已知 R T2 <{t' s}> *)
+        (* 因为 <{t s}> --> <{t' s}> (通过 ST_App1) *)
+        apply (IHT2 <{ t s }> <{ t' s }>).
+        -- (* 证明 empty |-- <{ t s }> \in T2 *)
+          eapply T_App.
+          ++ exact HT.
+          ++ apply R_typable_empty.
+            exact Rs.
+        -- (* 证明 <{ t s }> --> <{ t' s }> *)
+          apply ST_App1.
+          exact E.
+        -- (* 证明 R T2 <{ t' s }> *)
+          apply RRt'.
+          exact Rs.
+  (* Prod *)
+  - (* 根据当前 R 的定义，Prod 情况是 False *)
+    split.
+    + assumption.
+    + split.
+      * apply (step_preserves_halting _ _ E).
+        assumption.
+      * (* False -> False *)
+        exfalso.
+        exact RRt'.
+Qed.
 Lemma multistep_preserves_R' : forall T t t',
   empty |-- t \in T -> (t -->* t') -> R T t' -> R T t.
 Proof.
@@ -821,11 +880,82 @@ Inductive instantiation :  tass -> env -> Prop :=
 
 (** First we need some additional lemmas on (ordinary) substitution. *)
 
-Lemma vacuous_substitution : forall  t x,
+Lemma vacuous_substitution : forall t x,
      ~ appears_free_in x t  ->
      forall t', <{ [x:=t']t }> = t.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros t x H t'.
+  induction t; simpl.
+  
+  - (* tm_var s *)
+    destruct (eqb_spec x s).
+    + (* x = s *)
+      subst. exfalso. apply H.
+      apply afi_var.
+    + (* x <> s *)
+      reflexivity.
+      
+  - (* tm_app t1 t2 *)
+    f_equal.
+    + apply IHt1.
+      intro Contra. apply H.
+      apply afi_app1. exact Contra.
+    + apply IHt2.
+      intro Contra. apply H.
+      apply afi_app2. exact Contra.
+      
+  - (* tm_abs s ty t *)
+    destruct (eqb_spec x s).
+    + (* x = s *)
+      reflexivity.
+    + (* x <> s *)
+      f_equal.
+      apply IHt.
+      intro Contra. apply H.
+      apply afi_abs.
+      -- symmetry.
+        assumption.
+      -- exact Contra.
+      
+  - (* tm_true *)
+    reflexivity.
+    
+  - (* tm_false *)
+    reflexivity.
+    
+  - (* tm_if t1 t2 t3 *)
+    f_equal.
+    + apply IHt1.
+      intro Contra. apply H.
+      apply afi_test0. exact Contra.
+    + apply IHt2.
+      intro Contra. apply H.
+      apply afi_test1. exact Contra.
+    + apply IHt3.
+      intro Contra. apply H.
+      apply afi_test2. exact Contra.
+      
+  - (* tm_pair t1 t2 *)
+    f_equal.
+    + apply IHt1.
+      intro Contra. apply H.
+      apply afi_pair1. exact Contra.
+    + apply IHt2.
+      intro Contra. apply H.
+      apply afi_pair2. exact Contra.
+      
+  - (* tm_fst t *)
+    f_equal.
+    apply IHt.
+    intro Contra. apply H.
+    apply afi_fst. exact Contra.
+    
+  - (* tm_snd t *)
+    f_equal.
+    apply IHt.
+    intro Contra. apply H.
+    apply afi_snd. exact Contra.
+Qed.
 
 Lemma subst_closed: forall t,
      closed t  ->
@@ -879,7 +1009,49 @@ Proof with eauto.
    + subst. simpl. rewrite String.eqb_refl. apply subst_closed...
    + subst. simpl. rewrite String.eqb_refl. rewrite subst_closed...
    + simpl. rewrite false_eqb_string... rewrite false_eqb_string...
-  (* FILL IN HERE *) Admitted.
+   
+  - (* app *)
+    f_equal.
+    + apply IHt1...
+    + apply IHt2...
+    
+  - (* abs *)
+    destruct (eqb_spec x s); destruct (eqb_spec x1 s).
+   + subst. exfalso...
+   + subst. simpl. rewrite String.eqb_refl. rewrite false_eqb_string.
+    -- reflexivity.
+    -- exact n.
+   + subst. simpl. rewrite String.eqb_refl.
+   rewrite false_eqb_string.
+    -- reflexivity.
+    -- exact n.
+   + simpl. rewrite false_eqb_string... rewrite false_eqb_string...
+    f_equal. apply IHt...
+  - (* true *)
+    reflexivity.
+    
+  - (* false *)
+    reflexivity.
+    
+  - (* if *)
+    f_equal.
+    + apply IHt1...
+    + apply IHt2...
+    + apply IHt3...
+    
+  - (* pair *)
+    f_equal.
+    + apply IHt1...
+    + apply IHt2...
+    
+  - (* fst *)
+    f_equal.
+    apply IHt...
+    
+  - (* snd *)
+    f_equal.
+    apply IHt...
+Qed.
 
 (* ----------------------------------------------------------------- *)
 (** *** Properties of Multi-Substitutions *)
@@ -1127,7 +1299,46 @@ Proof.
     rewrite msubst_app.
     destruct (IHHT1 c H env0 V) as [_ [_ P1]].
     pose proof (IHHT2 c H env0 V) as P2.  fold R in P1.  auto.
+  - (* T_True *)
+    simpl. unfold R. split.
+    rewrite msubst_closed.
+    + apply T_True.
+    + unfold closed. intros x Contra. inversion Contra.
+    + split.
+      * apply value_halts.
+          rewrite msubst_closed.
+          -- apply v_true.
+          -- unfold closed. intros x Contra. inversion Contra.
+      * auto.
+  - (* T_False *)
+    simpl. unfold R. split.
+    rewrite msubst_closed.
+    + apply T_False.
+    + unfold closed. intros x Contra. inversion Contra.
+    + split.
+      * apply value_halts.
+          rewrite msubst_closed.
+          -- apply v_false.
+          -- unfold closed. intros x Contra. inversion Contra.
+      * auto.
+  - (* T_If *)
+    (* 首先证明 msubst 对条件语句的分配性 *)
+    assert (msubst_if: msubst env0 <{ if t1 then t2 else t3 }> = 
+            <{ if {msubst env0 t1} then {msubst env0 t2} else {msubst env0 t3} }>).
+    { clear. induction env0; simpl; auto.
+      destruct a. simpl. admit. }
+    rewrite msubst_if.
 
+    (* 应用归纳假设 *)
+    pose proof (IHHT1 c H env0 V) as R1.
+    pose proof (IHHT2 c H env0 V) as R2.  
+    pose proof (IHHT3 c H env0 V) as R3.
+
+    (* 从 R Bool (msubst env0 t1) 中提取信息 *)
+    unfold R in R1. destruct R1 as [Typ1 [Halts1 _]].
+    destruct (R_halts (IHHT1 c H env0 V)) as [v1 [Steps1 Val1]].
+    subst. 
+    unfold R. 
   (* FILL IN HERE *) Admitted.
 
 (* ----------------------------------------------------------------- *)
